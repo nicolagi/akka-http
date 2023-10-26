@@ -96,10 +96,13 @@ private[http] trait HttpMessageParser[Output >: MessageOutput <: ParserOutput] {
         ele
     }
 
-  protected final def shouldComplete(): Boolean = {
+  protected final def shouldComplete(callerDescriptor: String): Boolean = {
     completionHandling() match {
-      case Some(x) => emit(x)
-      case None    => // nothing to do
+      case Some(x) => {
+        debugMessage(s"emitting error from $callerDescriptor with result $result")
+        emit(x)
+      }
+      case None => // nothing to do
     }
     terminated = true
     result eq null
@@ -143,6 +146,7 @@ private[http] trait HttpMessageParser[Output >: MessageOutput <: ParserOutput] {
         case EmptyHeader =>
           val close = HttpMessage.connectionCloseExpected(protocol, ch)
           setCompletionHandling(CompletionIsEntityStreamError)
+          debugMessage(s"calling parseEntity with contentLength=$clh isChunked=$isChunked")
           parseEntity(headers.toList, protocol, input, lineEnd, clh, cth, isChunked, e100c, hh, close)
 
         case h: `Content-Length` => clh match {
@@ -276,7 +280,7 @@ private[http] trait HttpMessageParser[Output >: MessageOutput <: ParserOutput] {
     }
   }
 
-  protected def emit(output: Output): Unit = result match {
+  private def vanillaEmit(output: Output) = result match {
     case null                       => result = output
     case buffer: ListBuffer[Output] => buffer += output
     case old: Output @unchecked =>
@@ -284,6 +288,15 @@ private[http] trait HttpMessageParser[Output >: MessageOutput <: ParserOutput] {
       buffer += old
       buffer += output
       result = buffer
+  }
+
+  protected def emit(output: Output): Unit = {
+    output match {
+      case EntityPart(data)   => debugMessage(s"emit: EntityPart(len=${data.length})")
+      case EntityChunk(chunk) => debugMessage(s"emit: EntityChunk(len=${chunk.data.length})")
+      case _                  => debugMessage(s"emit: $output")
+    }
+    vanillaEmit(output)
   }
 
   protected final def continue(input: ByteString, offset: Int)(next: (ByteString, Int) => StateResult): StateResult = {
@@ -365,6 +378,11 @@ private[http] trait HttpMessageParser[Output >: MessageOutput <: ParserOutput] {
   protected final def setCompletionHandling(completionHandling: CompletionHandling): Unit =
     this.completionHandling = completionHandling
 
+  val instanceUUID = java.util.UUID.randomUUID.toString
+
+  private def debugMessage(message: String): Unit = {
+    System.out.println(s"DEBUG uuid=$instanceUUID $message")
+  }
 }
 
 /**

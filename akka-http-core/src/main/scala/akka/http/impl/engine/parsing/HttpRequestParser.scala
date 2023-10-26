@@ -56,9 +56,10 @@ private[http] final class HttpRequestParser(
     override def onPush(): Unit = handleParserOutput(parseSessionBytes(grab(in)))
     override def onPull(): Unit = handleParserOutput(doPull())
 
-    override def onUpstreamFinish(): Unit =
-      if (super.shouldComplete()) completeStage()
+    override def onUpstreamFinish(): Unit = {
+      if (super.shouldComplete("HttpRequestParser")) completeStage()
       else if (isAvailable(out)) handleParserOutput(doPull())
+    }
 
     setHandlers(in, out, this)
 
