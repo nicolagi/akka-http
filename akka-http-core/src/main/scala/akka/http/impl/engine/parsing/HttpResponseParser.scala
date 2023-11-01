@@ -36,7 +36,7 @@ private[http] class HttpResponseParser(protected val settings: ParserSettings, p
 
   final def onPull(): ResponseOutput = doPull()
 
-  final def onUpstreamFinish(): Boolean = shouldComplete()
+  final def onUpstreamFinish(): Boolean = shouldComplete("HttpResponseParser")
 
   override final def emit(output: ResponseOutput): Unit = {
     if (output == MessageEnd) contextForCurrentResponse = None
